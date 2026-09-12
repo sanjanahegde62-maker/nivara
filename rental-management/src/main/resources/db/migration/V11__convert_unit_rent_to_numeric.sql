@@ -1,0 +1,3 @@
+ALTER TABLE units
+ALTER COLUMN monthly_rent TYPE NUMERIC(12,2)
+USING monthly_rent::NUMERIC(12,2);
