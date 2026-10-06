@@ -12,13 +12,42 @@ import java.util.Date;
 
 @Service
 public class JwtService {
+
+    /** HMAC-SHA256 requires at least 32 bytes (256 bits). */
+    private static final int MIN_SECRET_BYTES = 32;
+
     private final SecretKey secretKey;
     private final long expiration;
+
     public JwtService(
             @Value("${jwt.secret}") String secret,
-            @Value("604800000") long expiration){
-        this.secretKey=Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-        this.expiration=expiration;
+            @Value("${jwt.expiration}") long expiration) {
+
+        // ── Startup validation ────────────────────────────────────────────────
+        // Fail fast with a clear message rather than producing a cryptographic
+        // exception later during the first authentication attempt.
+        // The secret VALUE is never logged or included in any exception message.
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException(
+                    "JWT configuration error: jwt.secret (JWT_SECRET) must not be empty. " +
+                    "Set the JWT_SECRET environment variable to a random string of at " +
+                    "least " + MIN_SECRET_BYTES + " characters.");
+        }
+        if (secret.getBytes(StandardCharsets.UTF_8).length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException(
+                    "JWT configuration error: jwt.secret (JWT_SECRET) is too short. " +
+                    "HMAC-SHA256 requires a key of at least " + MIN_SECRET_BYTES +
+                    " bytes (" + MIN_SECRET_BYTES + " ASCII characters). " +
+                    "Generate a stronger secret and set it via the JWT_SECRET environment variable.");
+        }
+        if (expiration <= 0) {
+            throw new IllegalStateException(
+                    "JWT configuration error: jwt.expiration (JWT_EXPIRATION) must be a " +
+                    "positive number of milliseconds. Current value: " + expiration);
+        }
+
+        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.expiration = expiration;
     }
     public String generateToken(User user) {
         Date now=new Date();

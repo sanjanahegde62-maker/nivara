@@ -1,15 +1,15 @@
 package com.example.rental_management.property.controller;
+
+import com.example.rental_management.auth.security.SecurityUtil;
 import com.example.rental_management.property.dto.PropertyRequest;
 import com.example.rental_management.property.dto.PropertyResponse;
 import com.example.rental_management.property.entity.Property;
 import com.example.rental_management.property.service.PropertyManagerService;
 import com.example.rental_management.property.service.PropertyService;
-import com.example.rental_management.auth.security.SecurityUtil;
+import com.example.rental_management.user.entity.Role;
 import com.example.rental_management.user.entity.User;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/properties")
@@ -45,7 +45,7 @@ public class PropertyController {
 
         Property property;
 
-        if (SecurityUtil.getCurrentUserRole().equals("ROLE_OWNER")) {
+        if (SecurityUtil.getCurrentUserRole() == Role.OWNER) {
             property = propertyService.getMyProperty(id, userId);
         } else {
             property = propertyService.getPropertyForManager(id, userId);

@@ -1,0 +1,68 @@
+# =============================================================================
+# Docker Compose — local development stack
+# =============================================================================
+# Services:
+#   db   — PostgreSQL 16 (data persisted in a named volume)
+#   app  — Rental Management Spring Boot application
+#
+# Usage:
+#   1. Copy .env.example to .env and fill in the required values.
+#   2. docker compose up
+#
+# The .env file is gitignored.  Never commit real credentials.
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: rental_management
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d rental_management"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Rental Management application
+  # ---------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    environment:
+      # Database — connects to the 'db' service by its Compose service name
+      DB_URL: jdbc:postgresql://db:5432/rental_management
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      # JWT — must be set in .env; no default so startup fails fast if missing
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-3600000}
+    depends_on:
+      db:
+        condition: service_healthy
+
+# ---------------------------------------------------------------------------
+# Named volume — PostgreSQL data survives container restarts
+# ---------------------------------------------------------------------------
+volumes:
+  postgres_data:

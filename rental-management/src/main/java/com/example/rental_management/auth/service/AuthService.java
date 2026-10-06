@@ -54,9 +54,14 @@ public class AuthService {
     public String generateToken(User user) {
         return jwtService.generateToken(user);
     }
-    public void resetPassword(String email, String newPassword) {
-
-        User user = userRepository.findByEmail(email)
+    /**
+     * Changes the password for the currently authenticated user only.
+     * The caller supplies their own user ID (derived from the JWT); they cannot
+     * change another user's password.  The new password is BCrypt-hashed before
+     * persistence and is never logged.
+     */
+    public void changePassword(Long userId, String newPassword) {
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("user not found"));
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));

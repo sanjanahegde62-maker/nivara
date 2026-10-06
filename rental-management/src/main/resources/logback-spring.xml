@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  logback-spring.xml — Production logging configuration for rental-management.
+
+  Principles:
+  - Application code logs at INFO and above (warnings + errors always visible).
+  - Spring Security, Hibernate/SQL, Flyway, and HikariCP are kept at WARN to
+    prevent noisy framework output in production.
+  - DEBUG output (scheduler job idempotency traces) is suppressed in production.
+  - Sensitive values (passwords, JWT tokens, secrets) are NEVER logged anywhere
+    in this configuration.  They must not appear in any appender pattern.
+  - A separate Spring profile block re-enables DEBUG for the application package
+    when the "dev" profile is active, to aid local development.
+-->
+<configuration>
+
+    <!-- ── Console appender ─────────────────────────────────────────────── -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <!--
+              Pattern: timestamp  level  [thread]  logger(40 chars)  — message
+              No request headers, no Authorization values, no tokens in this pattern.
+            -->
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %-40logger{40} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ── Framework noise suppression ──────────────────────────────────── -->
+
+    <!-- Spring Security: log warnings only — auth decisions are handled in code -->
+    <logger name="org.springframework.security" level="WARN"/>
+
+    <!-- Hibernate/JPA: suppress SQL and binding parameter output -->
+    <logger name="org.hibernate" level="WARN"/>
+    <logger name="org.hibernate.SQL" level="WARN"/>
+    <logger name="org.hibernate.orm.jdbc.bind" level="WARN"/>
+
+    <!-- HikariCP: pool lifecycle warnings only -->
+    <logger name="com.zaxxer.hikari" level="WARN"/>
+
+    <!-- Flyway: INFO so migration progress is visible at startup -->
+    <logger name="org.flywaydb" level="INFO"/>
+
+    <!-- Spring framework: suppress DEBUG/TRACE chatter -->
+    <logger name="org.springframework" level="WARN"/>
+    <logger name="org.springframework.web" level="WARN"/>
+
+    <!-- ── Application logger ────────────────────────────────────────────── -->
+    <!--
+      Default level for application code: INFO.
+      Scheduler jobs use log.debug(...) for idempotency skips — those are
+      suppressed at INFO level in production.
+    -->
+    <logger name="com.example.rental_management" level="INFO"/>
+
+    <!-- ── Root logger ───────────────────────────────────────────────────── -->
+    <root level="WARN">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <!-- ── Dev profile: re-enable DEBUG for application code only ────────── -->
+    <springProfile name="dev">
+        <logger name="com.example.rental_management" level="DEBUG"/>
+        <logger name="org.flywaydb" level="DEBUG"/>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+</configuration>

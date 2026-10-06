@@ -31,3 +31,16 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Local secrets / environment overrides — never commit real credentials ###
+.env
+.env.local
+.env.*.local
+application-local.properties
+application-local.yml
+*-secrets.properties
+*-secrets.yml
+
+### Docker local overrides ###
+docker-compose.override.yml
+.env

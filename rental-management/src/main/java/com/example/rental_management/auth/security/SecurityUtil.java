@@ -1,5 +1,6 @@
 package com.example.rental_management.auth.security;
 
+import com.example.rental_management.user.entity.Role;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -15,7 +16,7 @@ public class SecurityUtil {
        }
        return Long.parseLong(authentication.getName());
     }
-    public static String getCurrentUserRole(){
+    public static Role getCurrentUserRole(){
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         if(authentication == null || !authentication.isAuthenticated()){
@@ -30,6 +31,7 @@ public class SecurityUtil {
 
 
 
-        return role.replace("ROLE_","");
+        return Role.valueOf(role.replace("ROLE_", ""));
+
     }
 }
