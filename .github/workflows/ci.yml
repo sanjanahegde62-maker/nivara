@@ -16,7 +16,8 @@ jobs:
         image: postgres:16-alpine
         env:
           POSTGRES_DB: rental_management
-          POSTGRES_USER: ${{ secrets.DB_USERNAME || 'postgres' }}
+          # Username is fixed to 'postgres' — must match TEST_DB_USERNAME below.
+          POSTGRES_USER: postgres
           POSTGRES_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}
         ports:
           - 5432:5432
@@ -38,7 +39,8 @@ jobs:
           cache: maven
 
       - name: Run tests
-        working-directory: rental-management
+        # pom.xml and mvnw live in the nested rental-management subdirectory.
+        working-directory: rental-management/rental-management
         env:
           TEST_DB_URL: jdbc:postgresql://localhost:5432/rental_management
           TEST_DB_USERNAME: postgres
@@ -52,5 +54,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: surefire-reports
-          path: rental-management/target/surefire-reports/
+          path: rental-management/rental-management/target/surefire-reports/
           retention-days: 7
