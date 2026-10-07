@@ -35,7 +35,14 @@ public interface LeaseRepository extends JpaRepository<Lease, Long> {
     """)
     List<Lease> findByManagerId(@Param("managerId") Long managerId);
 
-    Optional<Lease> findByTenantIdAndUnitIdAndStatus(Long tenanttId, Long unitId, String status);
+    Optional<Lease> findByTenantIdAndUnitIdAndStatus(Long tenantId, Long unitId, String status);
+
+    /**
+     * Returns the single ACTIVE lease for a unit, if one exists.
+     * Used at lease-creation time to prevent overlap.
+     */
+    @Query("SELECT l FROM Lease l WHERE l.unit.id = :unitId AND l.status = 'ACTIVE'")
+    Optional<Lease> findActiveLeaseForUnit(@Param("unitId") Long unitId);
 
     /** All active leases — used by the rent-charge generation job. */
     List<Lease> findByStatus(String status);

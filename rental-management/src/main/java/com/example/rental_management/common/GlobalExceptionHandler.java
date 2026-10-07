@@ -88,6 +88,38 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.UNAUTHORIZED, "Authentication required");
     }
 
+    // ── Domain RuntimeException from services ─────────────────────────────────
+
+    /**
+     * Services outside the billing domain throw {@code RuntimeException} for
+     * not-found and authorization failures.  Map them to appropriate HTTP codes
+     * based on the message rather than returning 500.
+     *
+     * <p>This handler sits below the more specific {@code Exception} catch-all
+     * because {@code RuntimeException} is a subtype; Spring picks the most
+     * specific matching handler.
+     */
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<Map<String, Object>> handleRuntimeException(RuntimeException ex) {
+        String msg = ex.getMessage();
+        if (msg != null) {
+            String lower = msg.toLowerCase();
+            if (lower.contains("not authorized") || lower.contains("do not have access")) {
+                return error(HttpStatus.FORBIDDEN, "Access denied");
+            }
+            if (lower.contains("not found")) {
+                return error(HttpStatus.NOT_FOUND, msg);
+            }
+            if (lower.contains("not authorized") || lower.contains("unauthorized")) {
+                return error(HttpStatus.UNAUTHORIZED, "Authentication required");
+            }
+        }
+        // Unknown RuntimeException — log and return 500
+        org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class)
+                .error("Unhandled RuntimeException", ex);
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred");
+    }
+
     // ── Routing errors ─────────────────────────────────────────────────────────
 
     /**

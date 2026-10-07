@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.YearMonth;
 import java.util.List;
-
 /**
  * REST API for the billing module.
  *

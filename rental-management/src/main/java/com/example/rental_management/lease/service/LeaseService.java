@@ -30,14 +30,29 @@ public class LeaseService {
 
     public Lease createLease(Long applicationId, LocalDate startDate, LocalDate endDate) {
         Application application = applicationRepository.findById(applicationId)
-                .orElseThrow(() -> new RuntimeException("application not found"));
+                .orElseThrow(() -> new IllegalStateException("application not found"));
         if (!"APPROVED".equals(application.getStatus())) {
             throw new IllegalStateException("lease can be only created for an approved application");
         }
         if (leaseRepository.findByApplicationId(applicationId).isPresent()) {
             throw new IllegalStateException("lease already exists for this application");
         }
+
+        // Date validation
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException("startDate and endDate are required");
+        }
+        if (!endDate.isAfter(startDate)) {
+            throw new IllegalArgumentException("endDate must be after startDate");
+        }
+
+        // Overlap prevention: reject if another ACTIVE lease already exists for this unit
         Unit unit = application.getUnit();
+        leaseRepository.findActiveLeaseForUnit(unit.getId()).ifPresent(existing -> {
+            throw new IllegalStateException(
+                    "unit already has an active lease (id=" + existing.getId() + ")");
+        });
+
         Lease lease = new Lease();
         lease.setApplication(application);
         lease.setTenant(application.getTenant());
@@ -58,7 +73,7 @@ public class LeaseService {
             case TENANT -> leaseRepository.findByTenantId(userId);
             case OWNER -> leaseRepository.findByPropertyOwnerId(userId);
             case MANAGER -> leaseRepository.findByManagerId(userId);
-            case MAINTENANCE_STAFF -> throw new RuntimeException(
+            case MAINTENANCE_STAFF -> throw new IllegalStateException(
                     "maintenance staff do not have access to lease information");
         };
     }
@@ -76,7 +91,7 @@ public class LeaseService {
      */
     public Lease getLeaseById(Long leaseId, Long userId, Role role) {
         Lease lease = leaseRepository.findById(leaseId)
-                .orElseThrow(() -> new RuntimeException("lease not found"));
+                .orElseThrow(() -> new IllegalStateException("lease not found"));
 
         boolean allowed = switch (role) {
             case TENANT -> lease.getTenant().getId().equals(userId);
@@ -88,7 +103,7 @@ public class LeaseService {
         };
 
         if (!allowed) {
-            throw new RuntimeException("user not authorized to view this lease");
+            throw new IllegalStateException("user not authorized to view this lease");
         }
         return lease;
     }
