@@ -39,8 +39,8 @@ jobs:
           cache: maven
 
       - name: Run tests
-        # pom.xml and mvnw live in the nested rental-management subdirectory.
-        working-directory: rental-management/rental-management
+        # The Maven project (pom.xml + mvnw) lives in rental-management/ inside the repo root.
+        working-directory: rental-management
         env:
           TEST_DB_URL: jdbc:postgresql://localhost:5432/rental_management
           TEST_DB_USERNAME: postgres
@@ -54,5 +54,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: surefire-reports
-          path: rental-management/rental-management/target/surefire-reports/
+          path: rental-management/target/surefire-reports/**
           retention-days: 7
