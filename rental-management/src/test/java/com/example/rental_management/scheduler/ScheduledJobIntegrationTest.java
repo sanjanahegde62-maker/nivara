@@ -15,6 +15,7 @@ import com.example.rental_management.scheduler.job.LeaseExpiryJob;
 import com.example.rental_management.scheduler.job.OverdueDetectionJob;
 import com.example.rental_management.scheduler.job.RentChargeGenerationJob;
 import com.example.rental_management.scheduler.repository.JobExecutionLogRepository;
+import com.example.rental_management.support.TestFixtures;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,9 +33,18 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Tests run against the real PostgreSQL database (same credentials as the app).
  * They are ordered so that state flows naturally from one test to the next.
  * Each test manages its own setup/cleanup carefully to avoid FK violations.
+ *
+ * This class is intentionally NOT @Transactional because the scheduled jobs
+ * use REQUIRES_NEW transactions for job-log persistence — those commits must
+ * be visible across method boundaries for idempotency to be tested correctly.
+ *
+ * A single ACTIVE lease fixture is created once in @BeforeAll and deleted in
+ * @AfterAll.  All job-log rows are cleared before each test that starts a new
+ * job run (odd-numbered tests), so CI runs start from a clean slate.
  */
 @SpringBootTest
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ScheduledJobIntegrationTest {
 
     @Autowired LeaseRepository leaseRepository;
@@ -48,6 +58,36 @@ class ScheduledJobIntegrationTest {
     @Autowired LateFeeJob lateFeeJob;
     @Autowired LeaseExpiryJob leaseExpiryJob;
 
+    @Autowired TestFixtures fixtures;
+
+    /** The lease created for this test class run. Set in @BeforeAll. */
+    private Lease testLease;
+
+    // ── Lifecycle ──────────────────────────────────────────────────────────
+
+    @BeforeAll
+    void createFixture() {
+        testLease = fixtures.createActiveLease();
+    }
+
+    @AfterAll
+    void deleteFixture() {
+        // Delete in FK-safe order: ledger → payments → charges → lease graph
+        ledgerEntryRepository.findByLeaseIdOrderByCreatedAtAsc(testLease.getId())
+                .forEach(ledgerEntryRepository::delete);
+        rentChargeRepository.findByLeaseIdOrderByBillingPeriodDesc(testLease.getId())
+                .forEach(rc -> {
+                    paymentRepository.findByRentChargeIdOrderByPaymentDateAsc(rc.getId())
+                            .forEach(paymentRepository::delete);
+                    rentChargeRepository.delete(rc);
+                });
+        fixtures.deleteAll(testLease);
+        // Clean up any job logs written during the test run
+        jobLogRepository.findAll().stream()
+                .filter(l -> l.getRunDate().equals(LocalDate.now()))
+                .forEach(jobLogRepository::delete);
+    }
+
     // ── helpers ────────────────────────────────────────────────────────────
 
     private void clearJobLog(String jobName) {
@@ -59,14 +99,11 @@ class ScheduledJobIntegrationTest {
      * Safely delete a rent charge and all its dependent rows (payments, ledger entries).
      */
     private void safeDeleteCharge(RentCharge rc) {
-        // Delete ledger entries referencing this charge
         ledgerEntryRepository.findAll().stream()
                 .filter(e -> rc.getId().equals(e.getRentChargeId()))
                 .forEach(ledgerEntryRepository::delete);
-        // Delete payments referencing this charge
         paymentRepository.findByRentChargeIdOrderByPaymentDateAsc(rc.getId())
                 .forEach(paymentRepository::delete);
-        // Now safe to delete the charge itself
         rentChargeRepository.delete(rc);
     }
 
@@ -79,13 +116,12 @@ class ScheduledJobIntegrationTest {
     void rentChargeGeneration_createsChargesForActiveLeases() {
         clearJobLog(RentChargeGenerationJob.JOB_NAME);
 
-        Lease lease = leaseRepository.findById(1L).orElseThrow();
-        assertThat(lease.getStatus()).isEqualTo("ACTIVE");
+        assertThat(testLease.getStatus()).isEqualTo("ACTIVE");
 
         LocalDate periodDate = YearMonth.now().atDay(1);
 
         // Remove any pre-existing charge for this period (with all dependents)
-        rentChargeRepository.findByLeaseIdOrderByBillingPeriodDesc(lease.getId())
+        rentChargeRepository.findByLeaseIdOrderByBillingPeriodDesc(testLease.getId())
                 .stream()
                 .filter(rc -> rc.getBillingPeriod().equals(periodDate))
                 .forEach(this::safeDeleteCharge);
@@ -93,13 +129,13 @@ class ScheduledJobIntegrationTest {
         int result = rentChargeGenerationJob.execute();
         assertThat(result).isGreaterThanOrEqualTo(1);
 
-        // Charge must now exist
+        // Charge must now exist for the test lease
         assertThat(rentChargeRepository
-                .existsByLeaseIdAndBillingPeriod(lease.getId(), periodDate)).isTrue();
+                .existsByLeaseIdAndBillingPeriod(testLease.getId(), periodDate)).isTrue();
 
         // A RENT_CHARGE ledger debit entry must have been written
         boolean hasAutoDebit = ledgerEntryRepository
-                .findByLeaseIdOrderByCreatedAtAsc(lease.getId())
+                .findByLeaseIdOrderByCreatedAtAsc(testLease.getId())
                 .stream()
                 .anyMatch(e -> e.getEntryType() == LedgerEntryType.RENT_CHARGE
                         && e.getDescription().contains("auto-generated"));
@@ -123,10 +159,10 @@ class ScheduledJobIntegrationTest {
         int secondResult = rentChargeGenerationJob.execute();
         assertThat(secondResult).isEqualTo(-1); // -1 = skipped
 
-        // Exactly one charge for this billing period
+        // Exactly one charge for this billing period for the test lease
         LocalDate periodDate = YearMonth.now().atDay(1);
         long chargeCount = rentChargeRepository
-                .findByLeaseIdOrderByBillingPeriodDesc(1L)
+                .findByLeaseIdOrderByBillingPeriodDesc(testLease.getId())
                 .stream()
                 .filter(rc -> rc.getBillingPeriod().equals(periodDate))
                 .count();
@@ -142,17 +178,16 @@ class ScheduledJobIntegrationTest {
     void overdueDetection_marksPendingChargesOverdue() {
         clearJobLog(OverdueDetectionJob.JOB_NAME);
 
-        // If no past-due PENDING charge exists, create a synthetic one
+        // If no past-due PENDING charge exists, create a synthetic one for the test lease
         boolean hadPastDue = !rentChargeRepository
                 .findChargesToMarkOverdue(LocalDate.now()).isEmpty();
 
         if (!hadPastDue) {
-            Lease lease = leaseRepository.findById(1L).orElseThrow();
             RentCharge synthetic = new RentCharge();
-            synthetic.setLease(lease);
+            synthetic.setLease(testLease);
             synthetic.setBillingPeriod(LocalDate.now().minusMonths(3).withDayOfMonth(1));
             synthetic.setDueDate(LocalDate.now().minusMonths(3).withDayOfMonth(1));
-            synthetic.setAmount(lease.getMonthlyRent());
+            synthetic.setAmount(testLease.getMonthlyRent());
             synthetic.setStatus(ChargeStatus.PENDING);
             rentChargeRepository.save(synthetic);
         }
@@ -210,7 +245,6 @@ class ScheduledJobIntegrationTest {
                         && LocalDate.now().equals(e.getFeeDate()))
                 .count();
 
-        // More fee entries than before
         assertThat(feesAfter).isGreaterThan(feesBefore);
 
         // Job log SUCCESS
@@ -292,9 +326,9 @@ class ScheduledJobIntegrationTest {
     @Order(9)
     void rentChargeRepository_existsGuardWorks() {
         LocalDate periodDate = YearMonth.now().atDay(1);
-        // Charge for lease 1 this period was created in test 1
+        // Charge for the test lease this period was created in test 1
         assertThat(rentChargeRepository
-                .existsByLeaseIdAndBillingPeriod(1L, periodDate)).isTrue();
+                .existsByLeaseIdAndBillingPeriod(testLease.getId(), periodDate)).isTrue();
     }
 
     // ══════════════════════════════════════════════════════════════════════

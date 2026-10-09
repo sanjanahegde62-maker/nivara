@@ -9,6 +9,7 @@ import com.example.rental_management.maintenance.service.MaintenanceRequestServi
 import com.example.rental_management.user.entity.Role;
 import com.example.rental_management.user.entity.User;
 import com.example.rental_management.user.repository.UserRepository;
+import com.example.rental_management.support.TestFixtures;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -42,12 +43,12 @@ class MaintenanceWorkflowTest {
     @Autowired MaintenanceRepository maintenanceRepository;
     @Autowired LeaseRepository leaseRepository;
     @Autowired UserRepository userRepository;
+    @Autowired TestFixtures fixtures;
 
     // ── Base fixture ──────────────────────────────────────────────────────────
 
     private Lease activeLease() {
-        return leaseRepository.findById(1L)
-                .orElseThrow(() -> new IllegalStateException("test data: lease 1 not found"));
+        return fixtures.createActiveLease();
     }
 
     /**

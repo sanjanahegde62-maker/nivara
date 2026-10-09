@@ -12,6 +12,7 @@ import com.example.rental_management.billing.repository.PaymentRepository;
 import com.example.rental_management.billing.repository.RentChargeRepository;
 import com.example.rental_management.lease.entity.Lease;
 import com.example.rental_management.lease.repository.LeaseRepository;
+import com.example.rental_management.support.TestFixtures;
 import com.example.rental_management.report.dto.ExpenseReportRow;
 import com.example.rental_management.report.dto.IncomeReportRow;
 import com.example.rental_management.report.service.ReportService;
@@ -65,6 +66,7 @@ class ReportingIntegrationTest {
     @Autowired RentChargeRepository rentChargeRepository;
     @Autowired PaymentRepository paymentRepository;
     @Autowired LedgerEntryRepository ledgerEntryRepository;
+    @Autowired TestFixtures fixtures;
 
     // ── Security helpers ──────────────────────────────────────────────────────
 
@@ -86,8 +88,7 @@ class ReportingIntegrationTest {
     // ── Fixtures ──────────────────────────────────────────────────────────────
 
     private Lease activeLease() {
-        return leaseRepository.findById(1L)
-                .orElseThrow(() -> new IllegalStateException("test data: lease 1 not found"));
+        return fixtures.createActiveLease();
     }
 
     /** Insert a PENDING charge directly — rolled back after test. */

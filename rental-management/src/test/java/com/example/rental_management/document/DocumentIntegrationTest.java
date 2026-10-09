@@ -5,6 +5,10 @@ import com.example.rental_management.billing.exception.ResourceNotFoundException
 import com.example.rental_management.document.service.DocumentService;
 import com.example.rental_management.lease.entity.Lease;
 import com.example.rental_management.lease.repository.LeaseRepository;
+import com.example.rental_management.support.TestFixtures;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -45,6 +49,7 @@ class DocumentIntegrationTest {
 
     @Autowired DocumentService documentService;
     @Autowired LeaseRepository leaseRepository;
+    @Autowired TestFixtures fixtures;
 
     // ── Security helpers ──────────────────────────────────────────────────────
 
@@ -66,8 +71,7 @@ class DocumentIntegrationTest {
     // ── Fixture ───────────────────────────────────────────────────────────────
 
     private Lease activeLease() {
-        return leaseRepository.findById(1L)
-                .orElseThrow(() -> new IllegalStateException("test data: lease 1 not found"));
+        return fixtures.createActiveLease();
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -214,16 +218,22 @@ class DocumentIntegrationTest {
 
     @Test
     @Order(10)
-    void pdf_containsLeaseData() {
+    void pdf_containsLeaseData() throws Exception {
         Lease lease = activeLease();
         Long ownerId = lease.getUnit().getProperty().getOwner().getId();
 
         authenticate(ownerId, "OWNER");
         byte[] pdf = documentService.generateLeasePdf(lease.getId());
 
-        // The PDF is binary but property names, tenant names, and lease IDs
-        // are embedded as literal text in the content stream
-        String pdfText = new String(pdf);
+        // Extract readable text from the PDF using PDFBox — raw bytes are binary
+        // and must not be searched with new String(bytes).
+        String pdfText;
+        try (PDDocument doc = Loader.loadPDF(pdf)) {
+            pdfText = new PDFTextStripper().getText(doc);
+        }
+
+        // The lease ID and tenant name must appear in the extracted text.
         assertThat(pdfText).contains(String.valueOf(lease.getId()));
+        assertThat(pdfText).contains(lease.getTenant().getName());
     }
 }

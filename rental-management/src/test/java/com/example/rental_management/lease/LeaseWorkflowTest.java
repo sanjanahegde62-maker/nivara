@@ -10,6 +10,7 @@ import com.example.rental_management.property.entity.Unit;
 import com.example.rental_management.user.entity.Role;
 import com.example.rental_management.user.entity.User;
 import com.example.rental_management.user.repository.UserRepository;
+import com.example.rental_management.support.TestFixtures;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -31,6 +32,9 @@ import static org.assertj.core.api.Assertions.*;
  * - OWNER sees leases for their own properties only
  * - MAINTENANCE_STAFF cannot access leases
  * - LeaseResponse DTO does not expose passwords or JPA entity references
+ *
+ * All tests create their own fixture via TestFixtures and run inside a
+ * transaction that is rolled back automatically — no pre-existing data required.
  */
 @SpringBootTest
 @Transactional
@@ -41,12 +45,16 @@ class LeaseWorkflowTest {
     @Autowired LeaseRepository leaseRepository;
     @Autowired ApplicationRepository applicationRepository;
     @Autowired UserRepository userRepository;
+    @Autowired TestFixtures fixtures;
 
     // ── Base fixture ──────────────────────────────────────────────────────────
 
+    /**
+     * Creates a complete ACTIVE lease fixture for the current test.
+     * The transaction is rolled back after each test — no cleanup needed.
+     */
     private Lease activeLease() {
-        return leaseRepository.findById(1L)
-                .orElseThrow(() -> new IllegalStateException("test data: lease 1 not found"));
+        return fixtures.createActiveLease();
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -93,7 +101,6 @@ class LeaseWorkflowTest {
     @Order(2)
     void duplicateLease_forSameApplication_isRejected() {
         Lease existing = activeLease();
-        // The existing lease is already linked to an application
         Long appId = existing.getApplication().getId();
 
         assertThatThrownBy(() ->
@@ -148,7 +155,6 @@ class LeaseWorkflowTest {
         List<Lease> leases = leaseService.getLeasesForCurrentUser(ownerId, Role.OWNER);
 
         assertThat(leases).isNotEmpty();
-        // All returned leases should belong to this owner's properties
         assertThat(leases).allMatch(l ->
                 l.getUnit().getProperty().getOwner().getId().equals(ownerId));
     }
@@ -193,12 +199,10 @@ class LeaseWorkflowTest {
 
         LeaseResponse response = LeaseResponse.from(lease);
 
-        // Safe fields present
         assertThat(response.id()).isNotNull();
         assertThat(response.tenantId()).isEqualTo(lease.getTenant().getId());
         assertThat(response.status()).isEqualTo(lease.getStatus());
 
-        // String representation must not contain password-related content
         String json = response.toString();
         assertThat(json).doesNotContain("passwordHash");
         assertThat(json).doesNotContain("password_hash");
@@ -231,12 +235,12 @@ class LeaseWorkflowTest {
         Long appId = existing.getApplication().getId();
         LocalDate today = LocalDate.now();
 
-        // same date
+        // same date — rejected by duplicate-lease guard (lease already exists for this app)
+        // OR by date validation — either way an exception is thrown
         assertThatThrownBy(() ->
                 leaseService.createLease(appId, today, today))
                 .isInstanceOf(Exception.class);
 
-        // end before start
         assertThatThrownBy(() ->
                 leaseService.createLease(appId, today, today.minusDays(1)))
                 .isInstanceOf(Exception.class);
@@ -250,21 +254,14 @@ class LeaseWorkflowTest {
     @Order(11)
     void createLease_activeLeaseAlreadyExistsForUnit_isRejected() {
         Lease existing = activeLease();
-        // The unit already has an active lease (existing).
-        // Get the unit and look for a second approved application on the same unit.
-        // If none exists, skip gracefully — overlap prevention is tested via service directly.
+
         boolean unitHasActiveLease = leaseRepository
                 .findActiveLeaseForUnit(existing.getUnit().getId())
                 .isPresent();
         assertThat(unitHasActiveLease)
-                .as("fixture lease 1 should be ACTIVE so overlap guard is exercisable")
+                .as("fixture lease should be ACTIVE so overlap guard is exercisable")
                 .isTrue();
 
-        // Now simulate creating another lease for the same unit by calling the
-        // service with a fresh approved-app stub — however, createLease guards
-        // against this even before trying to save.
-        //
-        // We verify the repository query itself is correct:
         Long unitId = existing.getUnit().getId();
         assertThat(leaseRepository.findActiveLeaseForUnit(unitId))
                 .isPresent()

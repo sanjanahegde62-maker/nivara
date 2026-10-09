@@ -15,6 +15,7 @@ import com.example.rental_management.billing.repository.RentChargeRepository;
 import com.example.rental_management.billing.service.NewBillingService;
 import com.example.rental_management.lease.entity.Lease;
 import com.example.rental_management.lease.repository.LeaseRepository;
+import com.example.rental_management.support.TestFixtures;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -64,6 +65,7 @@ class BillingIntegrationTest {
     @Autowired RentChargeRepository rentChargeRepository;
     @Autowired PaymentRepository paymentRepository;
     @Autowired LedgerEntryRepository ledgerEntryRepository;
+    @Autowired TestFixtures fixtures;
 
     // ── Security helpers ──────────────────────────────────────────────────────
 
@@ -105,8 +107,7 @@ class BillingIntegrationTest {
      * leaseId=1 is pre-existing test data (same convention as ScheduledJobIntegrationTest).
      */
     private Lease activeLease() {
-        return leaseRepository.findById(1L).orElseThrow(
-                () -> new IllegalStateException("test data: lease 1 not found"));
+        return fixtures.createActiveLease();
     }
 
     // ══════════════════════════════════════════════════════════════════════════
