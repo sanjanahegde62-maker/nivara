@@ -40,10 +40,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = authHeader.substring(7);
 
-        if (!jwtService.isTokenValid(token)) {
-            filterChain.doFilter(request, response);
-            return;
-        }
+       if (!jwtService.isTokenValid(token)) {
+    SecurityContextHolder.clearContext();
+    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid or expired JWT");
+    return;
+}
 
         String userId = jwtService.extractUserId(token);
         String role = jwtService.extractRole(token);
