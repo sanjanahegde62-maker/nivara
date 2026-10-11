@@ -4,7 +4,6 @@ import com.example.rental_management.auth.dto.ChangePasswordRequest;
 import com.example.rental_management.auth.dto.LoginRequest;
 import com.example.rental_management.auth.dto.LoginResponse;
 import com.example.rental_management.auth.dto.RegisterRequest;
-import com.example.rental_management.auth.dto.RegisterResponse;
 import com.example.rental_management.auth.security.SecurityUtil;
 import com.example.rental_management.auth.service.AuthService;
 import com.example.rental_management.user.entity.User;
@@ -24,20 +23,20 @@ public class AuthController {
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
-    public RegisterResponse register(@Valid @RequestBody RegisterRequest request) {
+    public LoginResponse register(@Valid @RequestBody RegisterRequest request) {
         User user = authService.register(
                 request.name(),
                 request.email(),
                 request.password(),
                 request.phone(),
                 request.role());
-        return new RegisterResponse(
+        String token = authService.generateToken(user);
+        return new LoginResponse(
                 user.getId(),
                 user.getName(),
                 user.getEmail(),
-                user.getPhone(),
                 user.getRole(),
-                user.getStatus());
+                token);
     }
 
     @PostMapping("/login")

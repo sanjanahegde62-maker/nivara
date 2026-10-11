@@ -91,6 +91,17 @@ public class GlobalExceptionHandler {
     // ── Domain RuntimeException from services ─────────────────────────────────
 
     /**
+     * IllegalArgumentException from domain services (duplicate email, bad
+     * credentials, invalid decision value, etc.) — returns 400 Bad Request.
+     * The message is safe to expose because it comes from controlled application
+     * code, never from a database error or stack trace.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException ex) {
+        return error(HttpStatus.BAD_REQUEST, ex.getMessage() != null ? ex.getMessage() : "Bad request");
+    }
+
+    /**
      * Services outside the billing domain throw {@code RuntimeException} for
      * not-found and authorization failures.  Map them to appropriate HTTP codes
      * based on the message rather than returning 500.
