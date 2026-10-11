@@ -17,6 +17,6 @@ public interface PropertyManagerRepository
             Long managerId
     );
     List<PropertyManager> findByManagerId(Long managerId);
+    List<PropertyManager> findByPropertyId(Long propertyId);
     void deleteByPropertyIdAndManagerId(Long propertyId, Long managerId);
-
 }

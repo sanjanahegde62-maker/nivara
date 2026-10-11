@@ -112,6 +112,12 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, Object>> handleRuntimeException(RuntimeException ex) {
+        // Let Spring MVC handle ResponseStatusException natively (preserves the 4xx status).
+        if (ex instanceof org.springframework.web.server.ResponseStatusException rse) {
+            return error(
+                    HttpStatus.valueOf(rse.getStatusCode().value()),
+                    rse.getReason() != null ? rse.getReason() : rse.getMessage());
+        }
         String msg = ex.getMessage();
         if (msg != null) {
             String lower = msg.toLowerCase();
@@ -121,7 +127,7 @@ public class GlobalExceptionHandler {
             if (lower.contains("not found")) {
                 return error(HttpStatus.NOT_FOUND, msg);
             }
-            if (lower.contains("not authorized") || lower.contains("unauthorized")) {
+            if (lower.contains("unauthorized")) {
                 return error(HttpStatus.UNAUTHORIZED, "Authentication required");
             }
         }

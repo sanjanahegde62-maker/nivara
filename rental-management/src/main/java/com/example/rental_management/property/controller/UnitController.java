@@ -35,10 +35,11 @@ public class UnitController {
     public List<UnitResponse> getUnits(
             @PathVariable Long propertyId) {
 
-        Long ownerId = SecurityUtil.getCurrentUserId();
+        Long userId = SecurityUtil.getCurrentUserId();
+        com.example.rental_management.user.entity.Role role = SecurityUtil.getCurrentUserRole();
 
         return unitService
-                .getUnits(propertyId, ownerId)
+                .getUnits(propertyId, userId, role)
                 .stream()
                 .map(this::toResponse)
                 .toList();

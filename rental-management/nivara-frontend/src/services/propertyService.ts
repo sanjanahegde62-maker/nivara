@@ -1,12 +1,21 @@
 import api from '../lib/api';
-import type { PropertyRequest, PropertyResponse, UnitRequest, UnitResponse } from '../types/api';
+import type {
+  ManagerAssignmentResponse,
+  PropertyDetailResponse,
+  PropertyRequest,
+  PropertyResponse,
+  UnitRequest,
+  UnitResponse,
+  UserSummaryResponse,
+} from '../types/api';
 
 export const propertyService = {
   list: () =>
     api.get<PropertyResponse[]>('/properties').then((r) => r.data),
 
+  /** Returns PropertyDetailResponse (includes units, managers, stat counts) */
   get: (id: number) =>
-    api.get<PropertyResponse>(`/properties/${id}`).then((r) => r.data),
+    api.get<PropertyDetailResponse>(`/properties/${id}`).then((r) => r.data),
 
   create: (data: PropertyRequest) =>
     api.post<PropertyResponse>('/properties', data).then((r) => r.data),
@@ -16,6 +25,9 @@ export const propertyService = {
 
   delete: (id: number) =>
     api.delete(`/properties/${id}`),
+
+  listManagers: (propertyId: number) =>
+    api.get<ManagerAssignmentResponse[]>(`/properties/${propertyId}/managers`).then((r) => r.data),
 
   assignManager: (propertyId: number, managerId: number) =>
     api.post(`/properties/${propertyId}/managers/${managerId}`),
@@ -36,4 +48,9 @@ export const unitService = {
 
   delete: (propertyId: number, unitId: number) =>
     api.delete(`/properties/${propertyId}/units/${unitId}`),
+};
+
+export const userDirectoryService = {
+  listManagers: () =>
+    api.get<UserSummaryResponse[]>('/users?role=MANAGER').then((r) => r.data),
 };

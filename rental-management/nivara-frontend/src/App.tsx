@@ -8,6 +8,7 @@ import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import PropertiesPage from './pages/properties/PropertiesPage';
+import PropertyDetailPage from './pages/properties/PropertyDetailPage';
 import UnitsPage from './pages/properties/UnitsPage';
 import ApplicationsPage from './pages/applications/ApplicationsPage';
 import LeasesPage from './pages/leases/LeasesPage';
@@ -32,6 +33,7 @@ export default function App() {
             {/* Properties — OWNER and MANAGER only */}
             <Route element={<ProtectedRoute allowedRoles={['OWNER', 'MANAGER']} />}>
               <Route path="/properties" element={<PropertiesPage />} />
+              <Route path="/properties/:id" element={<PropertyDetailPage />} />
               <Route path="/properties/:propertyId/units" element={<UnitsPage />} />
             </Route>
 

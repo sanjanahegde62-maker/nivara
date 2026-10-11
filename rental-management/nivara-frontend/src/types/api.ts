@@ -39,6 +39,32 @@ export interface PropertyResponse {
   createdAt: string;
   updatedAt: string;
 }
+export interface ManagerAssignmentResponse {
+  managerId: number;
+  managerName: string;
+  managerEmail: string;
+  assignedAt: string;
+}
+export interface PropertyDetailResponse {
+  id: number;
+  name: string;
+  address: string;
+  propertyType: string;
+  description?: string;
+  totalUnits: number;
+  occupiedUnits: number;
+  vacantUnits: number;
+  createdAt: string;
+  updatedAt: string;
+  units: UnitResponse[];
+  managers: ManagerAssignmentResponse[];
+}
+export interface UserSummaryResponse {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+}
 
 // ─── Unit ─────────────────────────────────────────────────────────────────────
 export interface UnitRequest {

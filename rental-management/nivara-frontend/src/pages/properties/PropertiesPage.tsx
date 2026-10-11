@@ -89,10 +89,10 @@ export default function PropertiesPage() {
 
                 <div className="mt-4 flex items-center gap-2 border-t border-border pt-4">
                   <Link
-                    to={`/properties/${p.id}/units`}
+                    to={`/properties/${p.id}`}
                     className="btn-secondary flex-1 py-1.5 text-xs"
                   >
-                    View units <ChevronRight size={13} />
+                    View details <ChevronRight size={13} />
                   </Link>
                   <button
                     onClick={() => openEdit(p)}
