@@ -8,22 +8,49 @@ import com.example.rental_management.property.service.PropertyManagerService;
 import com.example.rental_management.property.service.PropertyService;
 import com.example.rental_management.user.entity.Role;
 import com.example.rental_management.user.entity.User;
+import com.example.rental_management.property.repository.PropertyManagerRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/properties")
-
 public class PropertyController {
     private final PropertyService propertyService;
     private final PropertyManagerService propertyManagerService;
-    public PropertyController(PropertyService propertyService, PropertyManagerService propertyManagerService) {
+    private final PropertyManagerRepository propertyManagerRepository;
+
+    public PropertyController(PropertyService propertyService,
+                              PropertyManagerService propertyManagerService,
+                              PropertyManagerRepository propertyManagerRepository) {
         this.propertyService = propertyService;
         this.propertyManagerService = propertyManagerService;
+        this.propertyManagerRepository = propertyManagerRepository;
     }
+
+    /** GET /properties — list all properties visible to the current user */
+    @GetMapping
+    public List<PropertyResponse> listProperties() {
+        Long userId = SecurityUtil.getCurrentUserId();
+        Role role = SecurityUtil.getCurrentUserRole();
+        if (role == Role.OWNER) {
+            return propertyService.getMyProperties(userId)
+                    .stream().map(this::toResponse).toList();
+        } else if (role == Role.MANAGER) {
+            return propertyManagerRepository.findByManagerId(userId)
+                    .stream().map(pm -> toResponse(pm.getProperty())).toList();
+        } else {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "Only owners and managers can list properties");
+        }
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public PropertyResponse createProperty(@RequestBody PropertyRequest request){
+requireOwner();
       Long ownerId= SecurityUtil.getCurrentUserId();
       Property property=new Property();
         property.setName(request.name());
@@ -45,11 +72,18 @@ public class PropertyController {
 
         Property property;
 
-        if (SecurityUtil.getCurrentUserRole() == Role.OWNER) {
-            property = propertyService.getMyProperty(id, userId);
-        } else {
-            property = propertyService.getPropertyForManager(id, userId);
-        }
+        
+if (SecurityUtil.getCurrentUserRole() == Role.OWNER) {
+    property = propertyService.getMyProperty(id, userId);
+} else if (SecurityUtil.getCurrentUserRole() == Role.MANAGER) {
+    property = propertyService.getPropertyForManager(id, userId);
+} else {
+    throw new ResponseStatusException(
+            HttpStatus.FORBIDDEN,
+            "You are not allowed to access this property endpoint"
+    );
+}
+
 
         return toResponse(property);
     }
@@ -67,8 +101,10 @@ public class PropertyController {
     }
     @PutMapping("/{id}")
     public PropertyResponse updateProperty(
+
             @PathVariable Long id,
             @RequestBody PropertyRequest request) {
+requireOwner();
         Long ownerId=SecurityUtil.getCurrentUserId();
         Property updatedProperty=propertyService.updateProperty(id,ownerId,request);
         return toResponse(updatedProperty);
@@ -77,12 +113,14 @@ public class PropertyController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteProperty(@PathVariable Long id){
+requireOwner();
         Long ownerId=SecurityUtil.getCurrentUserId();
         propertyService.deleteProperty(id,ownerId);
     }
     @PostMapping("/{propertyId}/managers/{managerId}")
     @ResponseStatus(HttpStatus.CREATED)
     public void assignManager(@PathVariable Long propertyId,@PathVariable Long managerId){
+requireOwner();
         Long ownerId = SecurityUtil.getCurrentUserId();
         propertyManagerService.assignManager(
                 propertyId,
@@ -95,6 +133,7 @@ public class PropertyController {
     public void removeManager(
             @PathVariable Long propertyId,
             @PathVariable Long managerId) {
+requireOwner();
 
         Long ownerId = SecurityUtil.getCurrentUserId();
 
@@ -104,5 +143,14 @@ public class PropertyController {
                 managerId
         );
     }
+private void requireOwner() {
+    if (SecurityUtil.getCurrentUserRole() != Role.OWNER) {
+        throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Only property owners can perform this action"
+        );
+    }
+}
+
 
 }
